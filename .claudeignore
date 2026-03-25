@@ -1,0 +1,11 @@
+# Same as .cursorignore, explicitly for Claude artifacts if they exist
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env.production
+**/.env.development
+
+**/node_modules/
+**/*.db
+**/*.sqlite
+**/data/
