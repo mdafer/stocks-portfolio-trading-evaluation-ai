@@ -324,4 +324,192 @@ async function getStockChart(symbol, period) {
   return { points, currency: res.meta?.currency || null };
 }
 
-module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes, getMarketMovers, getDividendData, getStockChart };
+/**
+ * Historical top gainers/losers for a specific day (daysBack=0 means today)
+ */
+const historicalMoversCache = new Map();
+const HIST_MOVERS_TTL_TODAY = 30 * 60 * 1000;   // 30 min
+const HIST_MOVERS_TTL_PAST  = 24 * 60 * 60 * 1000; // 24 h
+
+async function getHistoricalMovers(region = 'US', daysBack = 0, count = 20) {
+  const yfRegion = region === 'CA' ? 'CA' : 'US';
+
+  // Resolve target trading date string
+  const targetDate = new Date();
+  targetDate.setHours(0, 0, 0, 0);
+  targetDate.setDate(targetDate.getDate() - daysBack);
+  const targetStr = targetDate.toISOString().split('T')[0];
+
+  const cacheKey = `${region}-${targetStr}`;
+  const cached = historicalMoversCache.get(cacheKey);
+  const ttl = daysBack === 0 ? HIST_MOVERS_TTL_TODAY : HIST_MOVERS_TTL_PAST;
+  if (cached && Date.now() - cached.ts < ttl) return cached.data;
+
+  // ── Today: use screener directly ──────────────────────────────────────────
+  if (daysBack === 0) {
+    const result = await getMarketMovers(region, count);
+    const data = { ...result, date: targetStr };
+    historicalMoversCache.set(cacheKey, { data, ts: Date.now() });
+    return data;
+  }
+
+  // ── Past day: build a symbol pool then fetch chart history ────────────────
+  let symbols = [];
+  try {
+    const [gRes, lRes, aRes] = await Promise.allSettled([
+      fetchWithRetry(yf.screener, [{ scrIds: 'day_gainers',  count: 50, region: yfRegion }]),
+      fetchWithRetry(yf.screener, [{ scrIds: 'day_losers',   count: 50, region: yfRegion }]),
+      fetchWithRetry(yf.screener, [{ scrIds: 'most_actives', count: 50, region: yfRegion }]),
+    ]);
+    const symbolSet = new Set();
+    [gRes, lRes, aRes].forEach(r => {
+      if (r.status === 'fulfilled') (r.value?.quotes || []).forEach(q => symbolSet.add(q.symbol));
+    });
+    symbols = [...symbolSet];
+  } catch (err) {
+    console.error(`[YahooApi] getHistoricalMovers pool fail: ${err.message}`);
+  }
+
+  if (symbols.length === 0) {
+    return { topPerformers: [], bottomPerformers: [], date: targetStr };
+  }
+
+  // Fetch daily chart data for a 10-day window around the target date
+  const startDate = new Date(targetDate);
+  startDate.setDate(startDate.getDate() - 7);
+  const startStr = startDate.toISOString().split('T')[0];
+
+  const toDateStr = (val) => {
+    if (!val) return null;
+    const d = val instanceof Date ? val : new Date(typeof val === 'number' ? val * 1000 : val);
+    return isNaN(d) ? null : d.toISOString().split('T')[0];
+  };
+
+  // Batch in groups of 10 to avoid rate limits
+  const batchSize = 10;
+  const allResults = [];
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
+    const batchRes = await Promise.allSettled(
+      batch.map(sym => fetchWithRetry(yf.chart, [sym, { period1: startStr, interval: '1d' }]))
+    );
+    batchRes.forEach((r, j) => allResults.push({ result: r, symbol: batch[j] }));
+    if (i + batchSize < symbols.length) await new Promise(r => setTimeout(r, 300));
+  }
+
+  // Compute close-to-previous-close change for the target date
+  const movers = [];
+  allResults.forEach(({ result, symbol }) => {
+    if (result.status !== 'fulfilled') return;
+    const quotes = (result.value?.quotes || []).filter(q => q.close != null);
+    if (quotes.length < 2) return;
+
+    // Find target day (or closest trading day at/before target)
+    let targetIdx = -1;
+    for (let i = quotes.length - 1; i >= 0; i--) {
+      const ds = toDateStr(quotes[i].date);
+      if (ds && ds <= targetStr) { targetIdx = i; break; }
+    }
+    if (targetIdx < 1) return;
+
+    const curr = quotes[targetIdx];
+    const prev = quotes[targetIdx - 1];
+    if (!curr.close || !prev.close) return;
+
+    const changePercent = ((curr.close - prev.close) / prev.close) * 100;
+    movers.push({
+      symbol,
+      name: null,
+      change: parseFloat(changePercent.toFixed(2)),
+      price: curr.close,
+    });
+  });
+
+  movers.sort((a, b) => b.change - a.change);
+
+  const data = {
+    topPerformers:    movers.filter(m => m.change > 0).slice(0, count),
+    bottomPerformers: movers.filter(m => m.change < 0).reverse().slice(0, count),
+    date: targetStr,
+  };
+
+  historicalMoversCache.set(cacheKey, { data, ts: Date.now() });
+  return data;
+}
+
+/**
+ * Fundamentals for a single stock (PE, EPS, market cap, description, dividends, etc.)
+ * Uses yf.quote for financial metrics (reliable) + quoteSummary for profile/EPS extras.
+ */
+async function getStockFundamentals(symbol) {
+  const toDate = (val) => {
+    if (!val) return null;
+    const d = val instanceof Date ? val : new Date(typeof val === 'number' ? val * 1000 : val);
+    return isNaN(d) ? null : d.toISOString().split('T')[0];
+  };
+
+  // Run all fetches in parallel; each failure is independent
+  const [quoteRes, profileRes, detailRes, statsRes] = await Promise.allSettled([
+    fetchWithRetry(yf.quote, [symbol]),
+    fetchWithRetry(yf.quoteSummary, [symbol, { modules: ['summaryProfile'] }]),
+    fetchWithRetry(yf.quoteSummary, [symbol, { modules: ['summaryDetail'] }]),
+    fetchWithRetry(yf.quoteSummary, [symbol, { modules: ['defaultKeyStatistics'] }]),
+  ]);
+
+  const q = quoteRes.status  === 'fulfilled' ? (quoteRes.value  || {})                          : {};
+  const p = profileRes.status === 'fulfilled' ? (profileRes.value?.summaryProfile      || {})    : {};
+  const d = detailRes.status  === 'fulfilled' ? (detailRes.value?.summaryDetail        || {})    : {};
+  const k = statsRes.status   === 'fulfilled' ? (statsRes.value?.defaultKeyStatistics  || {})    : {};
+
+  ['quote', 'profile', 'detail', 'stats'].forEach((name, i) => {
+    const r = [quoteRes, profileRes, detailRes, statsRes][i];
+    if (r.status === 'rejected')
+      console.warn(`[YahooApi] Fundamentals ${name} fail for ${symbol}: ${r.reason?.message}`);
+  });
+
+  // yf.quote dividendYield is already a percentage (e.g. 1.5 = 1.5%)
+  const dy = q.dividendYield != null ? parseFloat((q.dividendYield).toFixed(2)) : null;
+
+  // summaryDetail payoutRatio is a decimal (0.35 = 35%); fiveYearAvgDividendYield is already %
+  const payoutRatio = d.payoutRatio != null ? parseFloat((d.payoutRatio * 100).toFixed(2)) : null;
+  const fiveYrYield = d.fiveYearAvgDividendYield ?? null;
+
+  return {
+    // Company profile
+    description: p.longBusinessSummary || null,
+    sector:      p.sector              || null,
+    industry:    p.industry            || null,
+    website:     p.website             || null,
+    employees:   p.fullTimeEmployees   || null,
+    country:     p.country             || null,
+
+    // Valuation — primary: yf.quote
+    marketCap:   q.marketCap   ?? null,
+    trailingPE:  q.trailingPE  ?? null,
+    forwardPE:   q.forwardPE   ?? null,
+    priceToBook: q.priceToBook ?? null,
+    pegRatio:    k.pegRatio    ?? null,
+
+    // Per-share
+    trailingEps: q.epsTrailingTwelveMonths ?? null,
+    forwardEps:  q.epsForward              ?? null,
+    bookValue:   q.bookValue               ?? null,
+
+    // Range & risk
+    fiftyTwoWeekLow:  q.fiftyTwoWeekLow  ?? null,
+    fiftyTwoWeekHigh: q.fiftyTwoWeekHigh ?? null,
+    beta:             q.beta             ?? null,
+    averageVolume:    q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? null,
+
+    // Dividends — rate/yield from quote; extras from summaryDetail + defaultKeyStatistics
+    dividendRate:             q.dividendRate        ?? null,
+    dividendYield:            dy,
+    exDividendDate:           toDate(q.exDividendDate ?? d.exDividendDate),
+    payoutRatio,
+    fiveYearAvgDividendYield: fiveYrYield,
+    lastDividendValue:        k.lastDividendValue   ?? null,
+    lastDividendDate:         toDate(k.lastDividendDate),
+  };
+}
+
+module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes, getMarketMovers, getHistoricalMovers, getDividendData, getStockChart, getStockFundamentals };

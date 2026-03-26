@@ -1,12 +1,14 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from './Toast';
+import StockSearch from './StockSearch';
 
 const NAV = [
   { to: '/', label: 'Overview', icon: '▣', end: true },
   { to: '/lists', label: 'Portfolios', icon: '▤' },
   { to: '/analyses', label: 'Analyses', icon: '◈' },
   { to: '/news', label: 'News', icon: '📰' },
+  { to: '/movers', label: 'Top Movers', icon: '▲' },
   { to: '/dividends', label: 'Dividends', icon: '$' },
   { to: '/cron-jobs', label: 'Scheduled', icon: '⏱' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
@@ -54,6 +56,9 @@ export default function Layout() {
       </aside>
 
       <main className="content">
+        <div className="topbar">
+          <StockSearch />
+        </div>
         <Outlet />
       </main>
     </div>

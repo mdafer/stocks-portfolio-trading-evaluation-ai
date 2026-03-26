@@ -1,6 +1,6 @@
 const Stock = require('../models/Stock');
 const List = require('../models/List');
-const { searchStocks, getQuote, getPriceChange, getStockChart } = require('../helpers/stockApi');
+const { searchStocks, getQuote, getPriceChange, getStockChart, getStockFundamentals } = require('../helpers/stockApi');
 const { getStockNews } = require('../helpers/newsApi');
 const { success, error, notFound, forbidden } = require('../utils/response');
 
@@ -125,11 +125,12 @@ async function news(req, res, next) {
 async function detail(req, res, next) {
   try {
     const symbol = req.params.symbol.toUpperCase();
-    const [quote, holdings] = await Promise.all([
+    const [quote, holdings, fundamentals] = await Promise.all([
       getQuote(symbol),
       Promise.resolve(Stock.getHoldingsForSymbol(symbol, req.user.id)),
+      getStockFundamentals(symbol),
     ]);
-    return success(res, { quote, holdings });
+    return success(res, { quote, holdings, fundamentals });
   } catch (err) {
     next(err);
   }

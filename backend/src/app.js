@@ -14,6 +14,7 @@ const analysisRoutes  = require('./routes/analyses');
 const settingsRoutes  = require('./routes/settings');
 const dashboardRoutes = require('./routes/dashboard');
 const dividendRoutes  = require('./routes/dividends');
+const moversRoutes    = require('./routes/movers');
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/analyses', analysisRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/dividends', dividendRoutes);
+app.use('/api/movers',   moversRoutes);
 
 // 404 handler
 app.use((req, res) => {
