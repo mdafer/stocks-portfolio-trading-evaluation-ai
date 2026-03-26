@@ -1,6 +1,6 @@
 const Stock = require('../models/Stock');
 const List = require('../models/List');
-const { searchStocks, getQuote, getPriceChange } = require('../helpers/stockApi');
+const { searchStocks, getQuote, getPriceChange, getStockChart } = require('../helpers/stockApi');
 const { getStockNews } = require('../helpers/newsApi');
 const { success, error, notFound, forbidden } = require('../utils/response');
 
@@ -122,4 +122,28 @@ async function news(req, res, next) {
   }
 }
 
-module.exports = { search, quote, priceChange, addToList, updateInList, removeFromList, news };
+async function detail(req, res, next) {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const [quote, holdings] = await Promise.all([
+      getQuote(symbol),
+      Promise.resolve(Stock.getHoldingsForSymbol(symbol, req.user.id)),
+    ]);
+    return success(res, { quote, holdings });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function chart(req, res, next) {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const period = req.query.period || '1m';
+    const data = await getStockChart(symbol, period);
+    return success(res, { chart: data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { search, quote, priceChange, addToList, updateInList, removeFromList, news, detail, chart };

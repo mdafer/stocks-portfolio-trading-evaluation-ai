@@ -12,6 +12,8 @@ import CronJobs from './pages/CronJobs';
 import Settings from './pages/Settings';
 import CombinedView from './pages/CombinedView';
 import NewsCenter from './pages/NewsCenter';
+import DividendsCenter from './pages/DividendsCenter';
+import StockDetail from './pages/StockDetail';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -42,8 +44,10 @@ export default function App() {
               <Route path="/lists/:id" element={<ListDetail />} />
               <Route path="/analyses" element={<Analyses />} />
               <Route path="/news" element={<NewsCenter />} />
+              <Route path="/dividends" element={<DividendsCenter />} />
               <Route path="/cron-jobs" element={<CronJobs />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/stocks/:symbol" element={<StockDetail />} />
             </Route>
           </Routes>
         </ToastProvider>

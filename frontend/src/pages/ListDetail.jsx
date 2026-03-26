@@ -418,7 +418,7 @@ export default function ListDetail() {
                 const sym = csym(p?.currency || s.currency);
                 return (
                   <tr key={s.id}>
-                    <td><span className="ticker">{s.symbol}</span></td>
+                    <td><Link to={`/stocks/${s.symbol}`} className="ticker">{s.symbol}</Link></td>
                     <td className="text-muted">{s.name}</td>
                     <td>
                       {p

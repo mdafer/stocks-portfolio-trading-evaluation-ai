@@ -80,6 +80,26 @@ const Stock = {
       WHERE l.user_id = ?
     `).all(userId);
   },
+
+  getHoldingsForSymbol(symbol, userId) {
+    return db.prepare(`
+      SELECT
+        l.id   AS list_id,
+        l.name AS list_name,
+        ls.allocation,
+        ls.allocation_type,
+        ls.added_at,
+        (SELECT SUM(ls2.allocation)
+         FROM list_stocks ls2
+         WHERE ls2.list_id = l.id AND ls2.allocation_type = 'value'
+        ) AS list_total_value
+      FROM stocks s
+      JOIN list_stocks ls ON s.id = ls.stock_id
+      JOIN lists l        ON ls.list_id = l.id
+      WHERE s.symbol = ? AND l.user_id = ?
+      ORDER BY l.name ASC
+    `).all(symbol, userId);
+  },
 };
 
 module.exports = Stock;

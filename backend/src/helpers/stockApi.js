@@ -225,4 +225,103 @@ async function getMarketMovers(region = 'US', count = 6) {
   }
 }
 
-module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes, getMarketMovers };
+/**
+ * Batch dividend data for a list of symbols
+ */
+async function getDividendData(symbols) {
+  if (symbols.length === 0) return {};
+
+  const toDate = (val) => {
+    if (!val) return null;
+    const d = val instanceof Date ? val : new Date(typeof val === 'number' ? val * 1000 : val);
+    return isNaN(d) ? null : d.toISOString().split('T')[0];
+  };
+
+  const result = {};
+
+  // Batch quote fetch for basic dividend fields
+  try {
+    const quotes = await fetchWithRetry(yf.quote, [symbols]);
+    const qArray = Array.isArray(quotes) ? quotes : [quotes];
+    qArray.forEach(q => {
+      if (!q) return;
+      result[q.symbol] = {
+        symbol: q.symbol,
+        name: q.shortName || q.longName || q.symbol,
+        dividendRate: q.dividendRate ?? null,
+        // dividendYield is already a percentage (e.g. 26.32 for 26.32%), don't multiply
+        dividendYield: q.dividendYield != null ? parseFloat((q.dividendYield).toFixed(2)) : null,
+        exDividendDate: toDate(q.exDividendDate),
+        // dividendDate in yf.quote is the last payment date
+        lastDividendDate: toDate(q.dividendDate),
+        lastDividendValue: null,
+        currency: q.currency ?? null,
+      };
+    });
+  } catch (err) {
+    console.error(`[YahooApi] Dividend quote fail: ${err.message}`);
+    return {};
+  }
+
+  // Parallel quoteSummary calls to get lastDividendValue & lastDividendDate
+  const dividendSymbols = symbols.filter(s => result[s]);
+  await Promise.all(
+    dividendSymbols.map(async (sym) => {
+      try {
+        const summary = await fetchWithRetry(yf.quoteSummary, [sym, { modules: ['defaultKeyStatistics'] }]);
+        const stats = summary?.defaultKeyStatistics;
+        if (!stats || !result[sym]) return;
+        if (stats.lastDividendValue != null) result[sym].lastDividendValue = stats.lastDividendValue;
+        if (stats.lastDividendDate)          result[sym].lastDividendDate  = toDate(stats.lastDividendDate);
+      } catch (_) { /* skip individual failures */ }
+    })
+  );
+
+  return result;
+}
+
+/**
+ * Historical chart data for a symbol and period
+ */
+async function getStockChart(symbol, period) {
+  const configs = {
+    '1d':  { interval: '5m',  days: 2 },
+    '1w':  { interval: '1d',  days: 7 },
+    '1m':  { interval: '1d',  days: 30 },
+    '3m':  { interval: '1d',  days: 90 },
+    '1y':  { interval: '1wk', days: 365 },
+    '5y':  { interval: '1mo', days: 1825 },
+    '10y': { interval: '1mo', days: 3650 },
+  };
+
+  const cfg = configs[period] || configs['1m'];
+  const start = new Date();
+  start.setDate(start.getDate() - cfg.days);
+
+  const res = await fetchWithRetry(yf.chart, [symbol, {
+    period1: start.toISOString().split('T')[0],
+    interval: cfg.interval,
+  }]);
+
+  const toIso = (val) => {
+    if (!val) return null;
+    const d = val instanceof Date ? val : new Date(typeof val === 'number' ? val * 1000 : val);
+    return isNaN(d) ? null : d.toISOString();
+  };
+
+  const points = (res.quotes || [])
+    .filter(q => q.close != null)
+    .map(q => ({ date: toIso(q.date), price: Math.round(q.close * 10000) / 10000 }))
+    .filter(q => q.date);
+
+  // For 1d, only keep today's points
+  if (period === '1d') {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayPoints = points.filter(q => q.date.startsWith(todayStr));
+    return { points: todayPoints.length > 0 ? todayPoints : points.slice(-78), currency: res.meta?.currency || null };
+  }
+
+  return { points, currency: res.meta?.currency || null };
+}
+
+module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes, getMarketMovers, getDividendData, getStockChart };

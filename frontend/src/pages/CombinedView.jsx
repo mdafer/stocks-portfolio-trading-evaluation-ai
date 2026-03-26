@@ -232,7 +232,7 @@ export default function CombinedView() {
                       <td style={{ width: 28, textAlign: 'center', color: 'var(--text-3)', fontSize: '.75rem' }}>
                         {multi ? (isExpanded ? '▾' : '▸') : ''}
                       </td>
-                      <td><span className="ticker">{row.symbol}</span></td>
+                      <td><Link to={`/stocks/${row.symbol}`} className="ticker">{row.symbol}</Link></td>
                       <td className="text-muted">{row.name}</td>
                       <td>
                         {p

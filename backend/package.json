@@ -22,9 +22,9 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
-    "openai": "^6.32.0",
+    "openai": "^6.33.0",
     "uuid": "^13.0.0",
-    "yahoo-finance2": "^3.13.2"
+    "yahoo-finance2": "^3.14.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

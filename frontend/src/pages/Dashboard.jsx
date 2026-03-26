@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import api from '../api/client';
 import Spinner from '../components/Spinner';
@@ -182,7 +183,7 @@ export default function Dashboard() {
                           {currentMovers.topPerformers.map(p => (
                             <div key={p.symbol} className="mover-item">
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                                <span className="ticker">{p.symbol}</span>
+                                <Link to={`/stocks/${p.symbol}`} className="ticker">{p.symbol}</Link>
                                 {p.name && <span className="text-muted text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>}
                               </div>
                               <span className="change-badge pos">▲ {p.change}%</span>
@@ -210,7 +211,7 @@ export default function Dashboard() {
                           {currentMovers.bottomPerformers.map(p => (
                             <div key={p.symbol} className="mover-item">
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                                <span className="ticker">{p.symbol}</span>
+                                <Link to={`/stocks/${p.symbol}`} className="ticker">{p.symbol}</Link>
                                 {p.name && <span className="text-muted text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>}
                               </div>
                               <span className="change-badge neg">▼ {Math.abs(p.change)}%</span>

@@ -11,7 +11,10 @@ export function useApi(path, deps = []) {
     setError(null);
     api.get(path)
       .then(setData)
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        console.error(`[useApi] ${path}:`, e.message);
+        setError(e.message);
+      })
       .finally(() => setLoading(false));
   }, [path, ...deps]);
 

@@ -9,6 +9,8 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/search', stockValidators.search, validate, stocksController.search);
+router.get('/:symbol/detail', stocksController.detail);
+router.get('/:symbol/chart', stocksController.chart);
 router.get('/:symbol/quote', stocksController.quote);
 router.get('/:symbol/price-change', stockValidators.priceChange, validate, stocksController.priceChange);
 router.get('/:symbol/news', stocksController.news);

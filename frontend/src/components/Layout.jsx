@@ -1,17 +1,20 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from './Toast';
 
 const NAV = [
   { to: '/', label: 'Overview', icon: '▣', end: true },
   { to: '/lists', label: 'Portfolios', icon: '▤' },
   { to: '/analyses', label: 'Analyses', icon: '◈' },
   { to: '/news', label: 'News', icon: '📰' },
+  { to: '/dividends', label: 'Dividends', icon: '$' },
   { to: '/cron-jobs', label: 'Scheduled', icon: '⏱' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ];
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { unreadCount, openPanel } = useNotifications();
 
   return (
     <div className="layout">
@@ -38,7 +41,15 @@ export default function Layout() {
               <span className="user-email">{user?.email}</span>
             </div>
           </div>
-          <button onClick={logout} className="logout-btn" title="Logout">⏏</button>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={openPanel} className="logout-btn notif-bell-btn" title="Notifications">
+              🔔
+              {unreadCount > 0 && (
+                <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </button>
+            <button onClick={logout} className="logout-btn" title="Logout">⏏</button>
+          </div>
         </div>
       </aside>
 

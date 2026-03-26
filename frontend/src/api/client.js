@@ -13,17 +13,21 @@ async function request(path, options = {}) {
 
   if (res.status === 204) return null;
 
+  // Read body once as text, then parse — avoids the double-consume bug
+  const text = await res.text();
   let data;
   try {
-    data = await res.json();
-  } catch (err) {
-    // Response is not valid JSON (e.g., HTML error page)
-    const text = await res.text();
-    console.error(`[API Error] ${res.status} ${res.statusText} at ${path}:`, text.slice(0, 500));
-    throw new Error(`Server returned ${res.status}: ${res.statusText}`);
+    data = JSON.parse(text);
+  } catch {
+    console.error(`[API] Non-JSON response ${res.status} ${res.statusText} at ${path}:`, text.slice(0, 500));
+    throw new Error(`Server error ${res.status}: ${res.statusText}`);
   }
 
-  if (!data.success) throw new Error(data.message || 'Request failed');
+  if (!data.success) {
+    const msg = data.message || 'Request failed';
+    console.error(`[API] ${res.status} at ${path}:`, msg);
+    throw new Error(msg);
+  }
   return data.data;
 }
 
