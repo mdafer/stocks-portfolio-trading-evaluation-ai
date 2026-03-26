@@ -1,6 +1,20 @@
 /* ─── Reset ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ─── Custom Scrollbars ─────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-2) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+  border-radius: 100px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 /* ─── Tokens ─────────────────────────────────────────── */
 :root {
   --bg:           #0d0f14;
@@ -43,7 +57,8 @@
 }
 
 /* ─── Base ───────────────────────────────────────────── */
-html { font-size: 15px; }
+html { font-size: 15px; scroll-behavior: smooth; }
+* { scroll-behavior: smooth; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   background: var(--bg);
@@ -460,6 +475,52 @@ textarea { resize: vertical; min-height: 80px; }
 .modal-form { display: flex; flex-direction: column; gap: 16px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; }
 
+/* ─── Prompt Picker ─────────────────────────────────── */
+.prompt-picker { display: flex; flex-direction: column; gap: 12px; }
+.prompt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: .78rem;
+  font-weight: 500;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.prompt-chip:hover { border-color: var(--primary); color: var(--primary); }
+.prompt-chip.active { background: var(--primary-dim); border-color: var(--primary); color: var(--primary); }
+.save-prompt-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: .8rem;
+  color: var(--text-2);
+}
+.save-prompt-check input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* ─── News Center ───────────────────────────────────── */
+.news-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: var(--bg-3);
+  cursor: pointer;
+  transition: background var(--transition);
+  border-bottom: 1px solid var(--border);
+}
+.news-group-header:hover { background: var(--bg-2); }
+
 /* ─── Modal Tabs ─────────────────────────────────────── */
 .modal-tabs {
   display: flex;
@@ -753,11 +814,43 @@ textarea { resize: vertical; min-height: 80px; }
   grid-template-columns: 350px 1fr;
   gap: 2rem;
 }
+.movers-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 700px) {
+  .movers-columns { grid-template-columns: 1fr; }
+}
+.movers-col-label {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.movers-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+}
+.movers-col-header:has(.movers-col-label.pos) { border-bottom-color: var(--green-dim); }
+.movers-col-header:has(.movers-col-label.neg) { border-bottom-color: var(--red-dim); }
+.movers-col-label.pos { color: var(--green); }
+.movers-col-label.neg { color: var(--red); }
+.movers-list {
+  max-height: 480px;
+  overflow-y: auto;
+}
 .mover-item {
   display: flex;
   justify-content: space-between;
-  padding: 0.75rem 0;
+  align-items: center;
+  padding: 6px 0;
   border-bottom: 1px solid var(--border);
+  gap: 8px;
 }
 .mover-item:last-child { border-bottom: none; }
 .feed-article {
@@ -783,5 +876,110 @@ textarea { resize: vertical; min-height: 80px; }
 .article-title { margin: 0; font-size: 1rem; color: var(--text-1); line-height: 1.4; }
 @media (max-width: 900px) {
   .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Sortable table headers ────────────────────────── */
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition);
+}
+.sortable-th:hover { color: var(--primary); }
+.sort-indicator {
+  font-size: .65rem;
+  color: var(--primary);
+}
+
+/* ─── Inline edit input (list rename) ────────────────── */
+.inline-edit-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: .9rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  box-shadow: 0 0 0 3px var(--primary-dim);
+}
+
+/* ─── List card link wrapper ─────────────────────────── */
+.list-card-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── List card checkbox ─────────────────────────────── */
+.list-card-check {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding-top: 2px;
+}
+.list-card-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.list-card-selected {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-dim);
+}
+
+/* ─── Metrics summary bar ────────────────────────────── */
+.metrics-bar {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.metric-card {
+  flex: 1;
+  min-width: 220px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+}
+.metric-label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+.metric-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.metric-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ─── Combined view: expandable rows & sub-rows ──────── */
+.expandable-row:hover td { background: var(--bg-3); }
+.sub-row td {
+  background: var(--bg-3) !important;
+  border-bottom-color: var(--border) !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: .8rem;
+}
+.sub-row-list {
+  font-weight: 600;
+  color: var(--text-2);
+  font-size: .8rem;
 }
 

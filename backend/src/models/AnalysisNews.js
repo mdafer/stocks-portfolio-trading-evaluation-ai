@@ -20,6 +20,16 @@ const AnalysisNews = {
       'SELECT symbol, title, link, source, pub_date FROM analysis_news WHERE analysis_id = ? ORDER BY symbol, rowid',
     ).all(analysisId);
   },
+
+  findByUser(userId) {
+    return db.prepare(`
+      SELECT DISTINCT an.symbol, an.title, an.link, an.source, an.pub_date, a.created_at AS analysis_date
+      FROM analysis_news an
+      JOIN analyses a ON an.analysis_id = a.id
+      WHERE a.user_id = ?
+      ORDER BY an.pub_date DESC, an.symbol ASC
+    `).all(userId);
+  },
 };
 
 module.exports = AnalysisNews;

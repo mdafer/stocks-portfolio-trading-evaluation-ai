@@ -5,6 +5,7 @@ const NAV = [
   { to: '/', label: 'Overview', icon: '▣', end: true },
   { to: '/lists', label: 'Portfolios', icon: '▤' },
   { to: '/analyses', label: 'Analyses', icon: '◈' },
+  { to: '/news', label: 'News', icon: '📰' },
   { to: '/cron-jobs', label: 'Scheduled', icon: '⏱' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ];

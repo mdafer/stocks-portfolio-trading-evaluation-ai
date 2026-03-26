@@ -1,10 +1,22 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import api from '../api/client';
 import { useToast } from '../components/Toast';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import PageError from '../components/PageError';
+
+function SortHeader({ label, sortKey, sortCol, sortDir, onSort }) {
+  const active = sortCol === sortKey;
+  return (
+    <th className="sortable-th" onClick={() => onSort(sortKey)}>
+      {label}
+      <span className="sort-indicator">
+        {active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+      </span>
+    </th>
+  );
+}
 
 const PRESETS = [
   { label: 'Daily 9am', value: '0 9 * * 1-5' },
@@ -61,10 +73,32 @@ export default function CronJobs() {
     }
   };
 
+  const [sortCol, setSortCol] = useState('list');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const onSort = (col) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
+  const jobs = useMemo(() => {
+    const raw = data?.cronJobs ?? [];
+    return [...raw].sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === 'list') cmp = (a.list_name || '').localeCompare(b.list_name || '');
+      else if (sortCol === 'schedule') cmp = (a.schedule || '').localeCompare(b.schedule || '');
+      else if (sortCol === 'status') cmp = (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+      else if (sortCol === 'lastRun') cmp = new Date(a.last_run_at || 0) - new Date(b.last_run_at || 0);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [data?.cronJobs, sortCol, sortDir]);
+
   if (loading || lists.loading) return <div className="page"><Spinner center /></div>;
   if (error) return <div className="page"><PageError message={error} onRetry={refresh} /></div>;
-
-  const jobs = data?.cronJobs ?? [];
 
   return (
     <div className="page">
@@ -135,10 +169,10 @@ export default function CronJobs() {
         <table className="table">
           <thead>
             <tr>
-              <th>List</th>
-              <th>Schedule</th>
-              <th>Status</th>
-              <th>Last Run</th>
+              <SortHeader label="List" sortKey="list" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+              <SortHeader label="Schedule" sortKey="schedule" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+              <SortHeader label="Status" sortKey="status" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+              <SortHeader label="Last Run" sortKey="lastRun" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
               <th />
             </tr>
           </thead>

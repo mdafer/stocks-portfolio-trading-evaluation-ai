@@ -35,7 +35,8 @@ const yf = {
   quote: async (...args) => (await getYahooInstance()).quote(...args),
   search: async (...args) => (await getYahooInstance()).search(...args),
   historical: async (...args) => (await getYahooInstance()).historical(...args),
-  chart: async (...args) => (await getYahooInstance()).chart(...args)
+  chart: async (...args) => (await getYahooInstance()).chart(...args),
+  screener: async (...args) => (await getYahooInstance()).screener(...args),
 };
 
 module.exports = { getYahooInstance, yf };

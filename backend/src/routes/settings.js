@@ -10,4 +10,9 @@ router.put('/',                   settingsController.updateSettings);
 router.get('/ai/free-models',     settingsController.freeModels);
 router.post('/ai/test',           settingsController.testConnection);
 
+router.get('/prompts',            settingsController.getPrompts);
+router.post('/prompts',           settingsController.createPrompt);
+router.put('/prompts/:id',        settingsController.updatePrompt);
+router.delete('/prompts/:id',     settingsController.deletePrompt);
+
 module.exports = router;

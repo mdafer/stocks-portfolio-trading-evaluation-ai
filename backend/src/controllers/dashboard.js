@@ -1,6 +1,6 @@
 const Stock = require('../models/Stock');
 const List = require('../models/List');
-const { getDashboardQuotes } = require('../helpers/stockApi');
+const { getDashboardQuotes, getMarketMovers } = require('../helpers/stockApi');
 const { getBulkNews } = require('../helpers/newsApi');
 const { success } = require('../utils/response');
 
@@ -52,8 +52,8 @@ async function getMovers(req, res, next) {
     performers.sort((a, b) => b.change - a.change);
 
     return success(res, {
-      topPerformers: performers.filter(p => p.change > 0).slice(0, 3),
-      bottomPerformers: performers.filter(p => p.change < 0).slice(-3).reverse()
+      topPerformers: performers.filter(p => p.change > 0),
+      bottomPerformers: performers.filter(p => p.change < 0).reverse()
     });
   } catch (err) {
     next(err);
@@ -82,4 +82,17 @@ async function getNewsFeed(req, res, next) {
   }
 }
 
-module.exports = { getSummary, getMovers, getNewsFeed };
+async function getMarketMoversEndpoint(req, res, next) {
+  try {
+    const region = (req.query.region || 'US').toUpperCase();
+    const count = Math.min(parseInt(req.query.count) || 20, 50);
+    console.log(`[Dashboard] Fetching market movers: region=${region}, count=${count}`);
+    const result = await getMarketMovers(region, count);
+    return success(res, result);
+  } catch (err) {
+    console.error(`[Dashboard] Market movers error for ${req.query.region}:`, err.message);
+    next(err);
+  }
+}
+
+module.exports = { getSummary, getMovers, getNewsFeed, getMarketMoversEndpoint };

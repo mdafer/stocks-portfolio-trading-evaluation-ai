@@ -8,7 +8,6 @@ export function ToastProvider({ children }) {
   const addToast = useCallback((message, type = 'info') => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   }, []);
 
   const dismiss = useCallback((id) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);

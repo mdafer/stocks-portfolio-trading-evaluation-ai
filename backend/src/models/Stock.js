@@ -20,6 +20,11 @@ const Stock = {
     return db.prepare('SELECT * FROM stocks WHERE id = ?').get(id);
   },
 
+  updateCurrency(id, currency) {
+    if (!currency) return;
+    db.prepare('UPDATE stocks SET currency = ? WHERE id = ? AND (currency IS NULL OR currency != ?)').run(currency, id, currency);
+  },
+
   addToList(listId, stockId, allocation = null, allocationType = 'value') {
     const existing = db.prepare('SELECT id FROM list_stocks WHERE list_id = ? AND stock_id = ?').get(listId, stockId);
     if (existing) return existing;
@@ -50,6 +55,20 @@ const Stock = {
       WHERE ls.list_id = ?
       ORDER BY ls.added_at DESC
     `).all(listId);
+  },
+
+  getByLists(listIds) {
+    if (!listIds.length) return [];
+    const placeholders = listIds.map(() => '?').join(',');
+    return db.prepare(`
+      SELECT s.*, ls.added_at, ls.allocation, ls.allocation_type,
+             ls.list_id, l.name AS list_name
+      FROM stocks s
+      JOIN list_stocks ls ON s.id = ls.stock_id
+      JOIN lists l ON ls.list_id = l.id
+      WHERE ls.list_id IN (${placeholders})
+      ORDER BY s.symbol ASC, l.name ASC
+    `).all(...listIds);
   },
 
   getByUser(userId) {

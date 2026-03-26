@@ -13,7 +13,16 @@ async function request(path, options = {}) {
 
   if (res.status === 204) return null;
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    // Response is not valid JSON (e.g., HTML error page)
+    const text = await res.text();
+    console.error(`[API Error] ${res.status} ${res.statusText} at ${path}:`, text.slice(0, 500));
+    throw new Error(`Server returned ${res.status}: ${res.statusText}`);
+  }
+
   if (!data.success) throw new Error(data.message || 'Request failed');
   return data.data;
 }

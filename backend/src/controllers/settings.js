@@ -1,4 +1,5 @@
 const UserSettings = require('../models/UserSettings');
+const AiPrompt = require('../models/AiPrompt');
 const { getFreeModels } = require('../helpers/openRouter');
 const { chatCompletion } = require('../utils/ai/openai');
 const { success, error } = require('../utils/response');
@@ -55,4 +56,37 @@ async function testConnection(req, res, next) {
   }
 }
 
-module.exports = { getSettings, updateSettings, freeModels, testConnection };
+// ── AI Prompts (saved custom messages) ───────────────────────────────────────
+
+async function getPrompts(req, res, next) {
+  try {
+    return success(res, { prompts: AiPrompt.findByUser(req.user.id) });
+  } catch (err) { next(err); }
+}
+
+async function createPrompt(req, res, next) {
+  try {
+    const { title, body } = req.body;
+    if (!title?.trim() || !body?.trim()) return error(res, 'Title and body are required', 422);
+    const prompt = AiPrompt.create(req.user.id, title.trim(), body.trim());
+    return success(res, { prompt });
+  } catch (err) { next(err); }
+}
+
+async function updatePrompt(req, res, next) {
+  try {
+    if (!AiPrompt.isOwnedBy(req.params.id, req.user.id)) return error(res, 'Not found', 404);
+    const prompt = AiPrompt.update(req.params.id, req.body);
+    return success(res, { prompt });
+  } catch (err) { next(err); }
+}
+
+async function deletePrompt(req, res, next) {
+  try {
+    if (!AiPrompt.isOwnedBy(req.params.id, req.user.id)) return error(res, 'Not found', 404);
+    AiPrompt.delete(req.params.id);
+    return success(res, { message: 'Deleted' });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getSettings, updateSettings, freeModels, testConnection, getPrompts, createPrompt, updatePrompt, deletePrompt };

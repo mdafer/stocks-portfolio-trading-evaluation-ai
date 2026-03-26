@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import api from '../api/client';
@@ -8,8 +8,30 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import PageError from '../components/PageError';
 import AnalysisModalContent from '../components/AnalysisModalContent';
+import MetricsSummary from '../components/MetricsSummary';
+import PromptPicker from '../components/PromptPicker';
+import { usePromptMessage } from '../hooks/usePromptMessage';
+
+function SortHeader({ label, sortKey, sortCol, sortDir, onSort }) {
+  const active = sortCol === sortKey;
+  return (
+    <th className="sortable-th" onClick={() => onSort(sortKey)}>
+      {label}
+      <span className="sort-indicator">
+        {active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+      </span>
+    </th>
+  );
+}
 
 const PERIODS = ['1d', '1w', '1m', '1y', '5y', '10y'];
+
+const CURRENCY_SYMBOLS = {
+  USD: '$', EUR: '\u20AC', GBP: '\u00A3', JPY: '\u00A5', CNY: '\u00A5',
+  CHF: 'CHF ', CAD: 'C$', AUD: 'A$', HKD: 'HK$', SGD: 'S$',
+  KRW: '\u20A9', INR: '\u20B9', BRL: 'R$', TWD: 'NT$',
+};
+function csym(currency) { return CURRENCY_SYMBOLS[currency] || (currency ? currency + ' ' : '$'); }
 
 function timeAgo(dateStr) {
   if (!dateStr) return null;
@@ -68,16 +90,46 @@ export default function ListDetail() {
 
   // List-level analysis modal
   const [listModal, setListModal]   = useState(false);
-  const [listMsg, setListMsg]       = useState('');
+  const listPrompt = usePromptMessage();
   const [listAnalysis, setListAnalysis] = useState(null);
   const [analyzingList, setAnalyzingList] = useState(false);
 
   // Per-stock analysis modal
   const [stockModal, setStockModal] = useState(null);
-  // { symbol, name, step: 'input'|'loading'|'result', analysis, userMsg }
+  // { symbol, name, step: 'input'|'loading'|'result', analysis }
+  const stockPrompt = usePromptMessage();
 
   const [editingAllocation, setEditingAllocation] = useState(null);
   // { symbol, allocation, allocation_type }
+
+  // Inline rename
+  const [editingName, setEditingName] = useState(null);
+
+  const renameList = async () => {
+    const newName = editingName?.trim();
+    if (!newName) { setEditingName(null); return; }
+    try {
+      await api.put(`/lists/${id}`, { name: newName });
+      toast('List renamed', 'success');
+      setEditingName(null);
+      refresh();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  // Sorting
+  const [sortCol, setSortCol] = useState('symbol');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const onSort = (col) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
 
   // Load cached prices whenever period or list changes
   const loadCachedPrices = useCallback(async () => {
@@ -161,9 +213,10 @@ export default function ListDetail() {
     e.preventDefault();
     setAnalyzingList(true);
     try {
+      if (listPrompt.msg.trim()) await listPrompt.maybeSave(listPrompt.msg);
       const d = await api.post('/analyses/trigger', {
         list_id: id,
-        user_message: listMsg || undefined,
+        user_message: listPrompt.msg || undefined,
         // The backend trigger doesn't currently use specific allocations in its logic
         // but we pass them for future context if the prompt builder is updated.
       });
@@ -176,22 +229,25 @@ export default function ListDetail() {
     }
   };
 
-  const closeListModal = () => { setListModal(false); setListAnalysis(null); setListMsg(''); };
+  const closeListModal = () => { setListModal(false); setListAnalysis(null); listPrompt.reset(); };
 
   // ── Per-stock analysis ──────────────────────────────────────────────────────
 
-  const openStockAnalysis = (symbol, name) =>
-    setStockModal({ symbol, name, step: 'input', result: null, userMsg: '' });
+  const openStockAnalysis = (symbol, name) => {
+    stockPrompt.reset();
+    setStockModal({ symbol, name, step: 'input', result: null });
+  };
 
   const runStockAnalysis = async (e) => {
     e.preventDefault();
-    const { symbol, userMsg } = stockModal;
+    const { symbol } = stockModal;
+    if (stockPrompt.msg.trim()) await stockPrompt.maybeSave(stockPrompt.msg);
     setStockModal((prev) => ({ ...prev, step: 'loading' }));
     try {
       const d = await api.post('/analyses/trigger', {
         list_id: id,
         symbol,
-        user_message: userMsg || undefined,
+        user_message: stockPrompt.msg || undefined,
       });
       setStockModal((prev) => ({ ...prev, step: 'result', analysis: d.analysis }));
     } catch (err) {
@@ -218,20 +274,52 @@ export default function ListDetail() {
     }
   };
 
+  // Sorted stocks (must be before early returns to preserve hook order)
+  const rawStocks = data?.stocks ?? [];
+
+  const stocks = useMemo(() => {
+    return [...rawStocks].sort((a, b) => {
+      let cmp = 0;
+      const pa = prices[a.symbol];
+      const pb = prices[b.symbol];
+      if (sortCol === 'symbol') cmp = a.symbol.localeCompare(b.symbol);
+      else if (sortCol === 'name') cmp = (a.name || '').localeCompare(b.name || '');
+      else if (sortCol === 'price') cmp = (pa?.currentPrice ?? 0) - (pb?.currentPrice ?? 0);
+      else if (sortCol === 'change') cmp = (pa?.changePercent ?? 0) - (pb?.changePercent ?? 0);
+      else if (sortCol === 'allocation') cmp = (a.allocation ?? 0) - (b.allocation ?? 0);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [rawStocks, prices, sortCol, sortDir]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if (loading) return <div className="page"><Spinner center /></div>;
   if (error)   return <div className="page"><PageError message={error} /></div>;
   if (!data?.list) return <div className="page"><PageError message="List not found" /></div>;
 
-  const stocks = data.stocks ?? [];
-
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <Link to="/" className="breadcrumb">← My Lists</Link>
-          <h1 className="page-title">{data.list.name}</h1>
+          {editingName !== null ? (
+            <input
+              className="inline-edit-input"
+              style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 4 }}
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onBlur={renameList}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') renameList();
+                if (e.key === 'Escape') setEditingName(null);
+              }}
+              autoFocus
+            />
+          ) : (
+            <h1 className="page-title" style={{ cursor: 'pointer' }} onClick={() => setEditingName(data.list.name)} title="Click to rename">
+              {data.list.name}
+            </h1>
+          )}
           {data.list.description && <p className="page-subtitle">{data.list.description}</p>}
         </div>
         <button onClick={() => setListModal(true)} className="btn btn-primary" disabled={stocks.length === 0}>
@@ -271,6 +359,9 @@ export default function ListDetail() {
           </div>
         )}
       </div>
+
+      {/* ── Metrics ── */}
+      <MetricsSummary stocks={stocks} prices={prices} period={period} />
 
       {/* ── Holdings ── */}
       <div className="panel">
@@ -312,11 +403,11 @@ export default function ListDetail() {
           <table className="table">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Name</th>
-                <th>Price</th>
-                <th>Change ({period})</th>
-                <th>Allocation</th>
+                <SortHeader label="Symbol" sortKey="symbol" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Name" sortKey="name" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Price" sortKey="price" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label={`Change (${period})`} sortKey="change" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Allocation" sortKey="allocation" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
                 <th />
               </tr>
             </thead>
@@ -324,13 +415,14 @@ export default function ListDetail() {
               {stocks.map((s) => {
                 const p = prices[s.symbol];
                 const isPos = p?.changePercent >= 0;
+                const sym = csym(p?.currency || s.currency);
                 return (
                   <tr key={s.id}>
                     <td><span className="ticker">{s.symbol}</span></td>
                     <td className="text-muted">{s.name}</td>
                     <td>
                       {p
-                        ? <strong>${p.currentPrice.toFixed(2)}</strong>
+                        ? <strong>{sym}{p.currentPrice.toFixed(2)}</strong>
                         : <span className="text-muted">—</span>
                       }
                     </td>
@@ -383,15 +475,7 @@ export default function ListDetail() {
           {!analyzingList && !listAnalysis && (
             <form onSubmit={runListAnalysis} className="modal-form">
               <p className="text-muted">The AI will analyze all {stocks.length} holdings using current market data.</p>
-              <div className="field">
-                <label>Additional instructions <span className="text-muted">(optional)</span></label>
-                <textarea
-                  placeholder="e.g. Focus on tech sector risks, or compare to S&P 500…"
-                  value={listMsg}
-                  onChange={(e) => setListMsg(e.target.value)}
-                  rows={3}
-                />
-              </div>
+              <PromptPicker value={listPrompt.msg} onChange={listPrompt.setMsg} saveNew={listPrompt.saveNew} onSaveNewChange={listPrompt.setSaveNew} />
               <div className="modal-actions">
                 <button type="button" className="btn" onClick={closeListModal}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Run Analysis</button>
@@ -422,7 +506,7 @@ export default function ListDetail() {
                 <span className="text-muted">{stockModal.name}</span>
                 {prices[stockModal.symbol] && (
                   <span className="stock-analysis-price">
-                    ${prices[stockModal.symbol].currentPrice.toFixed(2)}
+                    {csym(prices[stockModal.symbol].currency)}{prices[stockModal.symbol].currentPrice.toFixed(2)}
                     {' '}
                     <span className={prices[stockModal.symbol].changePercent >= 0 ? 'green' : 'red'}>
                       {prices[stockModal.symbol].changePercent >= 0 ? '▲' : '▼'}
@@ -431,15 +515,7 @@ export default function ListDetail() {
                   </span>
                 )}
               </div>
-              <div className="field">
-                <label>Additional instructions <span className="text-muted">(optional)</span></label>
-                <textarea
-                  placeholder="e.g. Focus on near-term earnings risk…"
-                  value={stockModal.userMsg}
-                  onChange={(e) => setStockModal((prev) => ({ ...prev, userMsg: e.target.value }))}
-                  rows={2}
-                />
-              </div>
+              <PromptPicker value={stockPrompt.msg} onChange={stockPrompt.setMsg} saveNew={stockPrompt.saveNew} onSaveNewChange={stockPrompt.setSaveNew} />
               <div className="modal-actions">
                 <button type="button" className="btn" onClick={closeStockModal}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Run Analysis</button>

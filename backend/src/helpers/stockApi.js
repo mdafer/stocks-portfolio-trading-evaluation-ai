@@ -101,15 +101,20 @@ async function getPriceChange(symbol, period) {
     const history = chartRes.quotes;
     if (!history || history.length < 2) return null;
 
+    const currency = chartRes.meta?.currency || null;
+
     const latest = history[history.length - 1].close;
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() - days);
-    
+
     // Find closest date before or on target
     const pastArr = history.filter(h => new Date(h.date) <= targetDate);
     const past = pastArr.length > 0 ? pastArr[pastArr.length - 1].close : history[0].close;
 
     const changePercent = ((latest - past) / past) * 100;
+
+    const latestDate = history[history.length - 1].date;
+    const pastDate = pastArr.length > 0 ? pastArr[pastArr.length - 1].date : history[0].date;
 
     return {
       symbol, period,
@@ -117,6 +122,9 @@ async function getPriceChange(symbol, period) {
       pastPrice: past,
       change: latest - past,
       changePercent: Math.round(changePercent * 100) / 100,
+      currency,
+      currentDate: latestDate ? new Date(latestDate).toISOString().split('T')[0] : null,
+      pastDate: pastDate ? new Date(pastDate).toISOString().split('T')[0] : null,
     };
   } catch (err) {
     console.warn(`[YahooApi] History fail for ${symbol} (${period}): ${err.message}`);
@@ -173,4 +181,48 @@ async function getBulkPriceData(symbols) {
   return result;
 }
 
-module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes };
+/**
+ * Fetch actual top market movers using Yahoo Finance screener
+ */
+async function getMarketMovers(region = 'US', count = 6) {
+  const regionMap = { US: 'US', CA: 'CA' };
+  const yfRegion = regionMap[region] || 'US';
+
+  try {
+    const [gainersRes, losersRes] = await Promise.all([
+      fetchWithRetry(yf.screener, [{ scrIds: 'day_gainers', count, region: yfRegion }]),
+      fetchWithRetry(yf.screener, [{ scrIds: 'day_losers', count, region: yfRegion }]),
+    ]);
+
+    // Validate response structure
+    if (!gainersRes || !gainersRes.quotes || !losersRes || !losersRes.quotes) {
+      console.error(`[YahooApi] Invalid screener response for ${region}:`, {
+        gainers: gainersRes ? Object.keys(gainersRes) : 'null',
+        losers: losersRes ? Object.keys(losersRes) : 'null'
+      });
+      return { topPerformers: [], bottomPerformers: [] };
+    }
+
+    const mapQuotes = (quotes) => (quotes || []).map(q => ({
+      symbol: q.symbol,
+      name: q.shortName || q.longName || q.symbol,
+      change: parseFloat((q.regularMarketChangePercent || 0).toFixed(2)),
+      price: q.regularMarketPrice,
+      currency: q.currency,
+    }));
+
+    return {
+      topPerformers: mapQuotes(gainersRes.quotes).slice(0, count),
+      bottomPerformers: mapQuotes(losersRes.quotes).slice(0, count),
+    };
+  } catch (err) {
+    console.error(`[YahooApi] Market movers screener fail for ${region}:`, {
+      message: err.message,
+      code: err.code,
+      status: err.status
+    });
+    return { topPerformers: [], bottomPerformers: [] };
+  }
+}
+
+module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes, getMarketMovers };

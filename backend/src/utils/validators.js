@@ -65,6 +65,10 @@ const analysisValidators = {
     body('list_id').notEmpty().withMessage('List ID is required'),
     body('user_message').optional().trim(),
   ],
+  quick: [
+    body('symbols').isArray({ min: 1 }).withMessage('At least one symbol is required'),
+    body('user_message').optional().trim(),
+  ],
 };
 
 module.exports = { authValidators, listValidators, stockValidators, cronJobValidators, analysisValidators };

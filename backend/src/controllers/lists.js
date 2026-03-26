@@ -62,8 +62,9 @@ function buildPriceMap(rows) {
       currentDate:   row.current_date,
       pastDate:      row.past_date,
       fetchedAt:     row.fetched_at,
+      currency:      row.currency || null,
     };
-    if (!lastUpdated || row.fetched_at < lastUpdated) lastUpdated = row.fetched_at;
+    if (!lastUpdated || row.fetched_at > lastUpdated) lastUpdated = row.fetched_at;
   }
 
   return { prices, lastUpdated };
@@ -99,7 +100,10 @@ async function refreshPrices(req, res, next) {
     for (const stock of stocks) {
       try {
         const data = await getPriceChange(stock.symbol, period);
-        if (data) StockPrice.upsert(stock.id, period, data);
+        if (data) {
+          StockPrice.upsert(stock.id, period, data);
+          if (data.currency) Stock.updateCurrency(stock.id, data.currency);
+        }
       } catch (err) {
         errors.push(`${stock.symbol}: ${err.code === 'RATE_LIMITED' ? 'rate limited' : err.message}`);
       }
@@ -112,4 +116,28 @@ async function refreshPrices(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { index, show, create, update, destroy, getPrices, refreshPrices };
+// ── Combined (multi-list) view ───────────────────────────────────────────────
+
+async function compare(req, res, next) {
+  try {
+    const ids = (req.query.ids || '').split(',').filter(Boolean);
+    if (ids.length === 0) return success(res, { lists: [], stocks: [], prices: {}, lastUpdated: null });
+
+    // Verify ownership of all lists
+    const userLists = List.findByUser(req.user.id);
+    const userListIds = new Set(userLists.map((l) => l.id));
+    const validIds = ids.filter((id) => userListIds.has(id));
+    if (validIds.length === 0) return success(res, { lists: [], stocks: [], prices: {}, lastUpdated: null });
+
+    const lists = userLists.filter((l) => validIds.includes(l.id));
+    const stocks = Stock.getByLists(validIds);
+
+    const period = req.query.period || '1m';
+    const rows = StockPrice.findByListsAndPeriod(validIds, period);
+    const { prices, lastUpdated } = buildPriceMap(rows);
+
+    return success(res, { lists, stocks, prices, period, lastUpdated });
+  } catch (err) { next(err); }
+}
+
+module.exports = { index, show, create, update, destroy, getPrices, refreshPrices, compare };

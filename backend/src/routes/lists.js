@@ -10,6 +10,9 @@ router.use(authenticate);
 router.get('/',                       listsController.index);
 router.post('/',                      listValidators.create, validate, listsController.create);
 
+// Combined multi-list view — must come before /:id
+router.get('/compare',                listsController.compare);
+
 // Price sub-routes must come before /:id to avoid ambiguity
 router.get('/:id/prices',             listsController.getPrices);
 router.post('/:id/prices/refresh',    listsController.refreshPrices);

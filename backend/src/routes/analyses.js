@@ -9,10 +9,12 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', analysesController.index);
+router.get('/news/all', analysesController.allNews);
 router.get('/list/:listId', analysesController.byList);
 router.get('/:id/news', analysesController.news);
 router.get('/:id', analysesController.show);
 router.post('/trigger', analysisValidators.trigger, validate, analysesController.trigger);
+router.post('/quick', analysisValidators.quick, validate, analysesController.quickAnalyze);
 router.delete('/:id', analysesController.destroy);
 
 module.exports = router;

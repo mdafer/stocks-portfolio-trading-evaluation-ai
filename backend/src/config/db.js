@@ -62,6 +62,7 @@ function initialize() {
 
   try { db.exec(`ALTER TABLE list_stocks ADD COLUMN allocation REAL;`); } catch(e){}
   try { db.exec(`ALTER TABLE list_stocks ADD COLUMN allocation_type TEXT DEFAULT 'value';`); } catch(e){}
+  try { db.exec(`ALTER TABLE stocks ADD COLUMN currency TEXT;`); } catch(e){}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS cron_jobs (
@@ -151,6 +152,18 @@ function initialize() {
   `);
 
   try { db.exec(`ALTER TABLE analysis_news ADD COLUMN link TEXT;`); } catch(e){}
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_prompts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_prompts_user_id ON ai_prompts(user_id);
+  `);
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_analysis_news_analysis_id ON analysis_news(analysis_id);

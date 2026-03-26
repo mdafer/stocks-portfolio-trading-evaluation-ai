@@ -10,6 +10,8 @@ import ListDetail from './pages/ListDetail';
 import Analyses from './pages/Analyses';
 import CronJobs from './pages/CronJobs';
 import Settings from './pages/Settings';
+import CombinedView from './pages/CombinedView';
+import NewsCenter from './pages/NewsCenter';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -36,8 +38,10 @@ export default function App() {
             <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/lists" element={<Lists />} />
+              <Route path="/lists/compare" element={<CombinedView />} />
               <Route path="/lists/:id" element={<ListDetail />} />
               <Route path="/analyses" element={<Analyses />} />
+              <Route path="/news" element={<NewsCenter />} />
               <Route path="/cron-jobs" element={<CronJobs />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
