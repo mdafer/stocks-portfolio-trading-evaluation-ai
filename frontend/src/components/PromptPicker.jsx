@@ -35,6 +35,9 @@ export default function PromptPicker({ value, onChange, saveNew, onSaveNewChange
         .map((p) => p.body);
       onChange(selectedBodies.join('\n\n'));
 
+      // Don't auto-save when using existing prompts; re-enable when all deselected
+      onSaveNewChange(next.size === 0);
+
       return next;
     });
   };

@@ -202,15 +202,17 @@ export default function MoversPage() {
       </div>
 
       {/* ── Content ── */}
-      <div className="panel" style={{ minHeight: 220, position: 'relative' }}>
+      <div style={{ minHeight: 220, position: 'relative' }}>
         {loading ? (
-          <Spinner center />
+          <div className="panel"><Spinner center /></div>
         ) : error ? (
-          <PageError message={error} onRetry={refresh} />
+          <div className="panel"><PageError message={error} onRetry={refresh} /></div>
         ) : !hasData ? (
-          <p className="text-muted text-sm" style={{ padding: '1rem 0' }}>
-            No movers data available for this date and region.
-          </p>
+          <div className="panel">
+            <p className="text-muted text-sm" style={{ padding: '1rem 0' }}>
+              No movers data available for this date and region.
+            </p>
+          </div>
         ) : (
           <div className="movers-columns">
             {/* Gainers */}
@@ -224,13 +226,14 @@ export default function MoversPage() {
                     onClick={() => openGroup('gainers')}
                     disabled={!!analysisModal}
                   >
-                    ◈ Analyze
+                    ◈ Analyze All
                   </button>
                 )}
               </div>
               <div className="movers-list">
-                {gainers.map(p => (
+                {gainers.map((p, i) => (
                   <div key={p.symbol} className="mover-item">
+                    <span className="mover-rank">{i + 1}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
                       <Link to={`/stocks/${p.symbol}`} className="ticker">{p.symbol}</Link>
                       {p.name && (
@@ -239,7 +242,7 @@ export default function MoversPage() {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       {p.price != null && (
                         <span className="text-muted text-sm">${p.price.toFixed(2)}</span>
                       )}
@@ -270,13 +273,14 @@ export default function MoversPage() {
                     onClick={() => openGroup('losers')}
                     disabled={!!analysisModal}
                   >
-                    ◈ Analyze
+                    ◈ Analyze All
                   </button>
                 )}
               </div>
               <div className="movers-list">
-                {losers.map(p => (
+                {losers.map((p, i) => (
                   <div key={p.symbol} className="mover-item">
+                    <span className="mover-rank">{i + 1}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
                       <Link to={`/stocks/${p.symbol}`} className="ticker">{p.symbol}</Link>
                       {p.name && (
@@ -285,7 +289,7 @@ export default function MoversPage() {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       {p.price != null && (
                         <span className="text-muted text-sm">${p.price.toFixed(2)}</span>
                       )}

@@ -212,10 +212,43 @@ async function getIncomeStatement(symbol) {
   }
 }
 
+/**
+ * Get top market gainers and losers from FMP
+ * @param {number} count - Number of results per side
+ * @returns {Promise<Object>} { topPerformers, bottomPerformers }
+ */
+async function getMarketGainersLosers(count = 6) {
+  if (!FMP_API_KEY) return null;
+
+  try {
+    const [gainers, losers] = await Promise.all([
+      fetchWithRetry(`${FMP_BASE_URL}/biggest-gainers?apikey=${FMP_API_KEY}`),
+      fetchWithRetry(`${FMP_BASE_URL}/biggest-losers?apikey=${FMP_API_KEY}`),
+    ]);
+
+    const mapQuotes = (quotes) => (quotes || []).slice(0, count).map(q => ({
+      symbol: q.symbol,
+      name: q.name || q.companyName || q.symbol,
+      change: parseFloat((q.changesPercentage ?? 0).toFixed(2)),
+      price: q.price,
+      currency: 'USD',
+    }));
+
+    return {
+      topPerformers: mapQuotes(gainers),
+      bottomPerformers: mapQuotes(losers),
+    };
+  } catch (err) {
+    console.error(`[FMP] Market gainers/losers failed: ${err.message}`);
+    return null;
+  }
+}
+
 module.exports = {
   getStocksBySector,
   getAvailableSectors,
   getCompanyProfile,
   getHistoricalPrices,
-  getIncomeStatement
+  getIncomeStatement,
+  getMarketGainersLosers
 };

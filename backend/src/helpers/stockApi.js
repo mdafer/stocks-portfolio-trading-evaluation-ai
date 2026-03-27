@@ -1,5 +1,5 @@
 const { yf } = require('../utils/yahoo');
-const { getStocksBySector, getCompanyProfile, getHistoricalPrices, getIncomeStatement } = require('./fmpApi');
+const { getStocksBySector, getCompanyProfile, getHistoricalPrices, getIncomeStatement, getMarketGainersLosers } = require('./fmpApi');
 
 const PERIOD_DAYS = {
   '1d': 1,
@@ -183,9 +183,23 @@ async function getBulkPriceData(symbols) {
 }
 
 /**
- * Fetch actual top market movers using Yahoo Finance screener
+ * Fetch top market movers — tries FMP first (no ~15% cap), falls back to Yahoo Finance screener
  */
 async function getMarketMovers(region = 'US', count = 6) {
+  // Try FMP first for US market (better data range, no artificial cap)
+  if (region === 'US') {
+    try {
+      const fmpResult = await getMarketGainersLosers(count);
+      if (fmpResult && fmpResult.topPerformers.length > 0) {
+        console.log(`[FMP] Market movers fetched successfully (${fmpResult.topPerformers.length} gainers, ${fmpResult.bottomPerformers.length} losers)`);
+        return fmpResult;
+      }
+    } catch (err) {
+      console.warn(`[FMP] Market movers failed, falling back to Yahoo: ${err.message}`);
+    }
+  }
+
+  // Fallback to Yahoo Finance screener
   const regionMap = { US: 'US', CA: 'CA' };
   const yfRegion = regionMap[region] || 'US';
 
