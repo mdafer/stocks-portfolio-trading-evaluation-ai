@@ -15,6 +15,8 @@ import NewsCenter from './pages/NewsCenter';
 import DividendsCenter from './pages/DividendsCenter';
 import StockDetail from './pages/StockDetail';
 import MoversPage from './pages/MoversPage';
+import StocksPage from './pages/StocksPage';
+import SectorPage from './pages/SectorPage';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -48,6 +50,8 @@ export default function App() {
               <Route path="/dividends" element={<DividendsCenter />} />
               <Route path="/cron-jobs" element={<CronJobs />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/stocks" element={<StocksPage />} />
+              <Route path="/stocks/sectors/:sectorId" element={<SectorPage />} />
               <Route path="/stocks/:symbol" element={<StockDetail />} />
               <Route path="/movers" element={<MoversPage />} />
             </Route>

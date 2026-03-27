@@ -11,13 +11,6 @@ build/
 # Database and data
 **/*.db
 **/*.sqlite
-**/data/
-
-# Backend and frontend specific
-backend/node_modules/
-backend/data/
-frontend/node_modules/
-frontend/dist/
 
 # OS specific files
 .DS_Store

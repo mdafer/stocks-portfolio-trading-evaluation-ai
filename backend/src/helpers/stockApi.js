@@ -1,4 +1,5 @@
 const { yf } = require('../utils/yahoo');
+const { getStocksBySector, getCompanyProfile, getHistoricalPrices, getIncomeStatement } = require('./fmpApi');
 
 const PERIOD_DAYS = {
   '1d': 1,
@@ -512,4 +513,165 @@ async function getStockFundamentals(symbol) {
   };
 }
 
-module.exports = { searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes, getMarketMovers, getHistoricalMovers, getDividendData, getStockChart, getStockFundamentals };
+// ── Sector stocks ────────────────────────────────────────────────────────────
+
+const sectorCache = new Map();
+const SECTOR_TTL = 10 * 60 * 1000; // 10 min
+
+/**
+ * Batch-fetch 5-year weekly chart data for a list of symbols and return
+ * 1-month, 1-year, 5-year % changes for each.
+ */
+async function batchPeriodChanges(symbols) {
+  const startDate = new Date();
+  startDate.setFullYear(startDate.getFullYear() - 6);
+  const startStr = startDate.toISOString().split('T')[0];
+
+  const results = {};
+  const toMs = (v) => {
+    if (!v) return 0;
+    if (v instanceof Date) return v.getTime();
+    return typeof v === 'number' ? v * 1000 : new Date(v).getTime();
+  };
+
+  const BATCH = 6;
+  for (let i = 0; i < symbols.length; i += BATCH) {
+    const batch = symbols.slice(i, i + BATCH);
+    const settled = await Promise.allSettled(
+      batch.map(sym => fetchWithRetry(yf.chart, [sym, { period1: startStr, interval: '1wk' }]))
+    );
+
+    settled.forEach((r, j) => {
+      const sym = batch[j];
+      if (r.status !== 'fulfilled') { results[sym] = {}; return; }
+      const history = (r.value?.quotes || []).filter(q => q.close != null);
+      if (history.length < 2) { results[sym] = {}; return; }
+
+      const latestMs = toMs(history[history.length - 1].date);
+      const latest   = history[history.length - 1].close;
+
+      const pct = (days) => {
+        const cutoff = latestMs - days * 86_400_000;
+        const entry  = [...history].reverse().find(h => toMs(h.date) <= cutoff);
+        if (!entry) return null;
+        return parseFloat(((latest - entry.close) / entry.close * 100).toFixed(2));
+      };
+
+      results[sym] = { change1m: pct(30), change1y: pct(365), change5y: pct(1825) };
+    });
+
+    if (i + BATCH < symbols.length) await new Promise(r => setTimeout(r, 400));
+  }
+  return results;
+}
+
+// Sector mapping — used for validation against FMP-supported sectors
+const VALID_SECTORS = [
+  'Technology', 'Healthcare', 'Financial Services', 'Consumer Cyclical',
+  'Communication Services', 'Industrials', 'Consumer Defensive', 'Energy',
+  'Basic Materials', 'Real Estate', 'Utilities'
+];
+
+/**
+ * Paginated list of stocks in a given sector, with multi-period changes.
+ * Uses FMP Stock Screener API for sector filtering + Yahoo Finance for real-time data.
+ */
+async function getSectorStocks(sectorId, region = 'us', page = 1, pageSize = 25, search = '') {
+  const cacheKey = `${sectorId}|${region}|${page}|${pageSize}|${search}`;
+  const cached = sectorCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SECTOR_TTL) return cached.data;
+
+  // Validate sector
+  if (!VALID_SECTORS.includes(sectorId)) {
+    throw Object.assign(new Error(`Unknown sector: ${sectorId}`), { code: 'INVALID_SYMBOL' });
+  }
+
+  // Fetch all stocks in the sector from FMP (1 call per sector, cached locally)
+  // FMP returns ~100-500 stocks per sector depending on the sector size
+  let allStocks = await getStocksBySector(sectorId, region, 1000);
+
+  // Filter by search query (matches symbol prefix or substring)
+  if (search) {
+    const q = search.toUpperCase();
+    allStocks = allStocks.filter(s => s.symbol.toUpperCase().includes(q));
+  }
+
+  if (allStocks.length === 0) {
+    const empty = { stocks: [], total: 0, page, pageSize, search };
+    sectorCache.set(cacheKey, { data: empty, ts: Date.now() });
+    return empty;
+  }
+
+  const total = allStocks.length;
+  const offset = (page - 1) * pageSize;
+  const pageStocks = allStocks.slice(offset, offset + pageSize);
+
+  if (pageStocks.length === 0) {
+    const empty = { stocks: [], total, page, pageSize };
+    sectorCache.set(cacheKey, { data: empty, ts: Date.now() });
+    return empty;
+  }
+
+  const symbols = pageStocks.map(s => s.symbol);
+
+  // Batch fetch real-time quote data (same pattern as getDashboardQuotes)
+  let quoteMap = {};
+  try {
+    const quotes = await fetchWithRetry(yf.quote, [symbols]);
+    const qArray = Array.isArray(quotes) ? quotes : [quotes];
+    qArray.forEach(q => {
+      if (q) quoteMap[q.symbol] = q;
+    });
+  } catch (err) {
+    console.warn(`[YahooApi] Sector quote batch failed for ${sectorId}: ${err.message}`);
+  }
+
+  // Compute period changes
+  const periodChanges = await batchPeriodChanges(symbols);
+
+  // Assemble response
+  const stocks = pageStocks.map(entry => {
+    const q = quoteMap[entry.symbol] ?? {};
+    const pc = periodChanges[entry.symbol] ?? {};
+    return {
+      symbol: entry.symbol,
+      name: q.shortName || q.longName || entry.name,
+      industry: entry.industry ?? null,
+      price: q.regularMarketPrice ?? null,
+      currency: q.currency ?? null,
+      marketCap: q.marketCap ?? null,
+      change1d: q.regularMarketChangePercent != null
+        ? parseFloat(q.regularMarketChangePercent.toFixed(2)) : null,
+      change1m: pc.change1m ?? null,
+      change1y: pc.change1y ?? null,
+      change5y: pc.change5y ?? null,
+    };
+  });
+
+  const data = { stocks, total, page, pageSize, search };
+  sectorCache.set(cacheKey, { data, ts: Date.now() });
+  return data;
+}
+
+/**
+ * Fetch stock detail data from FMP (profile, historical prices, income statement)
+ */
+async function getStockDetailsFMP(symbol) {
+  const [profile, historical, incomeStatement] = await Promise.allSettled([
+    getCompanyProfile(symbol),
+    getHistoricalPrices(symbol),
+    getIncomeStatement(symbol),
+  ]);
+
+  return {
+    profile: profile.status === 'fulfilled' ? profile.value : null,
+    historical: historical.status === 'fulfilled' ? historical.value : null,
+    incomeStatement: incomeStatement.status === 'fulfilled' ? incomeStatement.value : null,
+  };
+}
+
+module.exports = {
+  searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes,
+  getMarketMovers, getHistoricalMovers, getDividendData, getStockChart,
+  getStockFundamentals, getSectorStocks, getStockDetailsFMP
+};

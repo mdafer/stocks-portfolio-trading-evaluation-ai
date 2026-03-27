@@ -8,6 +8,7 @@ const NAV = [
   { to: '/lists', label: 'Portfolios', icon: '▤' },
   { to: '/analyses', label: 'Analyses', icon: '◈' },
   { to: '/news', label: 'News', icon: '📰' },
+  { to: '/stocks', label: 'Stocks', icon: '◉' },
   { to: '/movers', label: 'Top Movers', icon: '▲' },
   { to: '/dividends', label: 'Dividends', icon: '$' },
   { to: '/cron-jobs', label: 'Scheduled', icon: '⏱' },

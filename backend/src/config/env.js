@@ -24,6 +24,11 @@ const env = {
     requestDelay: parseInt(process.env.STOCK_API_DELAY_MS, 10) || 500,
   },
 
+  fmp: {
+    apiKey: process.env.FMP_API_KEY,
+    baseUrl: 'https://financialmodelingprep.com/stable',
+  },
+
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',

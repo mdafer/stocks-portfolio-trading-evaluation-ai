@@ -307,6 +307,7 @@ export default function StockDetail() {
   const quote        = data?.quote;
   const holdings     = data?.holdings ?? [];
   const fundamentals = data?.fundamentals;
+  const fmpData      = data?.fmpData;
 
   const isPos      = (quote?.changePercent ?? 0) >= 0;
   const chartColor = isPos ? '#10b981' : '#f43f5e';
@@ -591,6 +592,119 @@ export default function StockDetail() {
                 <Stat label="Employees" value={Number(fundamentals.employees).toLocaleString()} />
               )}
             </div>
+
+            {/* ── FMP Company Profile ── */}
+            {fmpData?.profile && (
+              <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 12 }}>
+                  Company Profile (FMP)
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                  gap: 10,
+                }}>
+                  {fmpData.profile.website && (
+                    <Stat label="Website" value={
+                      <a href={fmpData.profile.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: '.875rem' }}>
+                        Visit ↗
+                      </a>
+                    } />
+                  )}
+                  {fmpData.profile.country && (
+                    <Stat label="Country" value={fmpData.profile.country} />
+                  )}
+                  {fmpData.profile.employees && (
+                    <Stat label="Employees" value={Number(fmpData.profile.employees).toLocaleString()} />
+                  )}
+                  {fmpData.profile.ceo && (
+                    <Stat label="CEO" value={fmpData.profile.ceo} />
+                  )}
+                  {fmpData.profile.industry && (
+                    <Stat label="Industry" value={fmpData.profile.industry} />
+                  )}
+                  {fmpData.profile.sector && (
+                    <Stat label="Sector" value={fmpData.profile.sector} />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── FMP Income Statement ── */}
+            {fmpData?.incomeStatement?.statements && fmpData.incomeStatement.statements.length > 0 && (
+              <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 12 }}>
+                  Income Statement (Last 4 Quarters)
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: '.875rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ textAlign: 'left', padding: '8px 0', fontWeight: 600, color: 'var(--text-3)' }}>Period</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Revenue</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Operating Income</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Net Income</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fmpData.incomeStatement.statements.map((stmt, idx) => (
+                        <tr key={idx} style={{ borderBottom: idx < fmpData.incomeStatement.statements.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={{ padding: '8px 0', color: 'var(--text)' }}>
+                            {stmt.fillingDate ? new Date(stmt.fillingDate).toLocaleDateString([], { year: 'numeric', month: 'short' }) : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)' }}>
+                            {stmt.revenue ? '$' + fmtLargeNum(stmt.revenue) : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)' }}>
+                            {stmt.operatingIncome ? '$' + fmtLargeNum(stmt.operatingIncome) : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)' }}>
+                            {stmt.netIncome ? '$' + fmtLargeNum(stmt.netIncome) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ── FMP Historical Prices ── */}
+            {fmpData?.historical?.historical && fmpData.historical.historical.length > 0 && (
+              <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 12 }}>
+                  Historical Prices (Last 10 Trading Days)
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: '.875rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ textAlign: 'left', padding: '8px 0', fontWeight: 600, color: 'var(--text-3)' }}>Date</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Open</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>High</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Low</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Close</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: 'var(--text-3)' }}>Volume</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fmpData.historical.historical.slice(0, 10).map((h, idx) => (
+                        <tr key={idx} style={{ borderBottom: idx < 9 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={{ padding: '8px 0', color: 'var(--text)' }}>
+                            {h.date ? new Date(h.date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)' }}>{fmtNum(h.open)}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)' }}>{fmtNum(h.high)}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)' }}>{fmtNum(h.low)}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text)', fontWeight: 600 }}>{fmtNum(h.close)}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text-3)', fontSize: '.8rem' }}>{fmtLargeNum(h.volume)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,6 +1,6 @@
 const Stock = require('../models/Stock');
 const List = require('../models/List');
-const { searchStocks, getQuote, getPriceChange, getStockChart, getStockFundamentals } = require('../helpers/stockApi');
+const { searchStocks, getQuote, getPriceChange, getStockChart, getStockFundamentals, getSectorStocks, getStockDetailsFMP } = require('../helpers/stockApi');
 const { getStockNews } = require('../helpers/newsApi');
 const { success, error, notFound, forbidden } = require('../utils/response');
 
@@ -125,12 +125,13 @@ async function news(req, res, next) {
 async function detail(req, res, next) {
   try {
     const symbol = req.params.symbol.toUpperCase();
-    const [quote, holdings, fundamentals] = await Promise.all([
+    const [quote, holdings, fundamentals, fmpData] = await Promise.all([
       getQuote(symbol),
       Promise.resolve(Stock.getHoldingsForSymbol(symbol, req.user.id)),
       getStockFundamentals(symbol),
+      getStockDetailsFMP(symbol),
     ]);
-    return success(res, { quote, holdings, fundamentals });
+    return success(res, { quote, holdings, fundamentals, fmpData });
   } catch (err) {
     next(err);
   }
@@ -147,4 +148,37 @@ async function chart(req, res, next) {
   }
 }
 
-module.exports = { search, quote, priceChange, addToList, updateInList, removeFromList, news, detail, chart };
+const SECTORS = [
+  { id: 'Technology',             name: 'Technology',             icon: '💻', description: 'Software, hardware, semiconductors & IT services' },
+  { id: 'Healthcare',             name: 'Healthcare',             icon: '🏥', description: 'Pharmaceuticals, biotech & medical devices' },
+  { id: 'Financial Services',     name: 'Financial Services',     icon: '🏦', description: 'Banks, insurance & asset management' },
+  { id: 'Consumer Cyclical',      name: 'Consumer Cyclical',      icon: '🛍', description: 'Retail, automotive, travel & entertainment' },
+  { id: 'Communication Services', name: 'Communication Services', icon: '📡', description: 'Telecom, media & internet services' },
+  { id: 'Industrials',            name: 'Industrials',            icon: '⚙', description: 'Aerospace, defense, machinery & logistics' },
+  { id: 'Consumer Defensive',     name: 'Consumer Defensive',     icon: '🛒', description: 'Food, beverages & household products' },
+  { id: 'Energy',                 name: 'Energy',                 icon: '⚡', description: 'Oil, gas & renewable energy' },
+  { id: 'Basic Materials',        name: 'Basic Materials',        icon: '⛏', description: 'Mining, metals & chemicals' },
+  { id: 'Real Estate',            name: 'Real Estate',            icon: '🏢', description: 'REITs & property management' },
+  { id: 'Utilities',              name: 'Utilities',              icon: '💡', description: 'Electric, gas & water utilities' },
+];
+
+async function sectors(req, res, next) {
+  try {
+    return success(res, { sectors: SECTORS });
+  } catch (err) { next(err); }
+}
+
+async function sectorStocks(req, res, next) {
+  try {
+    const sectorId = decodeURIComponent(req.params.sectorId);
+    const region   = req.query.region || 'us';
+    const page     = Math.max(1, parseInt(req.query.page)      || 1);
+    const pageSize = Math.min(50, parseInt(req.query.pageSize)  || 25);
+    const search   = (req.query.search || '').trim();
+
+    const data = await getSectorStocks(sectorId, region, page, pageSize, search);
+    return success(res, data);
+  } catch (err) { next(err); }
+}
+
+module.exports = { search, quote, priceChange, addToList, updateInList, removeFromList, news, detail, chart, sectors, sectorStocks };

@@ -1,0 +1,193 @@
+/* ─── Sector Page ──────────────────────────────────────────── */
+.sector-page {
+  max-width: 1140px;
+}
+
+.sector-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  gap: 24px;
+}
+
+.sector-page-title-group {
+  flex: 1;
+}
+
+.sector-page-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.1;
+}
+
+.sector-page-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.sector-page-controls {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sector-page-controls .segment {
+  flex-shrink: 0;
+}
+
+.page-size-select {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.page-size-select:hover {
+  border-color: var(--text-3);
+  background: var(--bg-3);
+}
+
+.page-size-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-dim);
+}
+
+/* ─── Search box ─────────────────────────────────────────── */
+.sector-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sector-search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 1rem;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.sector-search-input {
+  padding: 8px 32px 8px 30px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  width: 180px;
+  transition: all var(--transition);
+}
+
+.sector-search-input::placeholder {
+  color: var(--text-3);
+}
+
+.sector-search-input:hover {
+  border-color: var(--text-3);
+  background: var(--bg-3);
+}
+
+.sector-search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-dim);
+  width: 220px;
+}
+
+.sector-search-clear {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+.sector-search-clear:hover {
+  color: var(--text);
+  background: var(--bg-3);
+}
+
+/* ─── Sortable table headers ──────────────────────────────── */
+.sortable-th {
+  transition: background var(--transition);
+  cursor: pointer !important;
+}
+
+.sortable-th:hover {
+  background: var(--bg-3);
+}
+
+.sort-indicator {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  transition: opacity var(--transition);
+}
+
+.sortable-th:hover .sort-indicator {
+  opacity: 1;
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sector-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sector-page-title {
+    font-size: 1.6rem;
+  }
+
+  .sector-page-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .sector-search-input {
+    width: 100%;
+  }
+
+  .sector-search-input:focus {
+    width: 100%;
+  }
+
+  .sector-search-box {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .region-toggle {
+    order: -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .sector-page-controls {
+    gap: 8px;
+  }
+
+  .page-size-select {
+    font-size: 0.75rem;
+    padding: 6px 10px;
+  }
+}

@@ -9,6 +9,8 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/search', stockValidators.search, validate, stocksController.search);
+router.get('/sectors', stocksController.sectors);
+router.get('/sectors/:sectorId/stocks', stocksController.sectorStocks);
 router.get('/:symbol/detail', stocksController.detail);
 router.get('/:symbol/chart', stocksController.chart);
 router.get('/:symbol/quote', stocksController.quote);
