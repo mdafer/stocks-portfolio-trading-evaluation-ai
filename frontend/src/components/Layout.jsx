@@ -11,6 +11,7 @@ const NAV = [
   { to: '/stocks', label: 'Stocks', icon: '◉' },
   { to: '/movers', label: 'Top Movers', icon: '▲' },
   { to: '/dividends', label: 'Dividends', icon: '$' },
+  { to: '/earnings', label: 'Earnings', icon: '📅' },
   { to: '/cron-jobs', label: 'Scheduled', icon: '⏱' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ];

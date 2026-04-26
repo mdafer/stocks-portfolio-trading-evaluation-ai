@@ -2,12 +2,12 @@ const { body, param, query } = require('express-validator');
 
 const authValidators = {
   register: [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('email').isEmail({ require_tld: false }).normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
     body('name').trim().notEmpty().withMessage('Name is required'),
   ],
   login: [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('email').isEmail({ require_tld: false }).normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email is required'),
     body('password').notEmpty().withMessage('Password is required'),
   ],
 };

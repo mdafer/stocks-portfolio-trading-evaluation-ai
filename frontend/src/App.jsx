@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import CombinedView from './pages/CombinedView';
 import NewsCenter from './pages/NewsCenter';
 import DividendsCenter from './pages/DividendsCenter';
+import EarningsCenter from './pages/EarningsCenter';
 import StockDetail from './pages/StockDetail';
 import MoversPage from './pages/MoversPage';
 import StocksPage from './pages/StocksPage';
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/analyses" element={<Analyses />} />
               <Route path="/news" element={<NewsCenter />} />
               <Route path="/dividends" element={<DividendsCenter />} />
+              <Route path="/earnings" element={<EarningsCenter />} />
               <Route path="/cron-jobs" element={<CronJobs />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/stocks" element={<StocksPage />} />

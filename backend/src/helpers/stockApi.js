@@ -296,6 +296,182 @@ async function getDividendData(symbols) {
 }
 
 /**
+ * Batch upcoming-earnings fetch for a list of symbols.
+ * Uses Yahoo Finance `calendarEvents` (per symbol). Returns map symbol → entry.
+ */
+const earningsCache = new Map();
+const EARNINGS_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+async function getUpcomingEarnings(symbols) {
+  if (!symbols.length) return {};
+
+  const toDate = (val) => {
+    if (!val) return null;
+    const d = val instanceof Date ? val : new Date(typeof val === 'number' ? val * 1000 : val);
+    return isNaN(d) ? null : d;
+  };
+  const toIso = (val) => {
+    const d = toDate(val);
+    return d ? d.toISOString().split('T')[0] : null;
+  };
+  const toIsoFull = (val) => {
+    const d = toDate(val);
+    return d ? d.toISOString() : null;
+  };
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  // Resolve cached vs uncached
+  const result = {};
+  const toFetch = [];
+  for (const sym of symbols) {
+    const cached = earningsCache.get(sym);
+    if (cached && Date.now() - cached.ts < EARNINGS_TTL) {
+      if (cached.data) result[sym] = cached.data;
+    } else {
+      toFetch.push(sym);
+    }
+  }
+
+  // Batch — Yahoo quoteSummary is per-symbol; cap concurrency to avoid 429s.
+  const BATCH = 6;
+  for (let i = 0; i < toFetch.length; i += BATCH) {
+    const batch = toFetch.slice(i, i + BATCH);
+    await Promise.all(batch.map(async (sym) => {
+      try {
+        const summary = await fetchWithRetry(yf.quoteSummary, [sym, {
+          modules: ['calendarEvents', 'price', 'earningsHistory'],
+        }]);
+        const ev = summary?.calendarEvents?.earnings;
+        const price = summary?.price;
+
+        // ── Upcoming entry ────────────────────────────────────────────────
+        let upcoming = null;
+        if (ev) {
+          // Pair date-only and full-ISO so the times survive sorting
+          const rawDates = (ev.earningsDate || [])
+            .map(v => ({ date: toIso(v), full: toIsoFull(v) }))
+            .filter(d => d.date)
+            .sort((a, b) => a.full.localeCompare(b.full));
+
+          const start = rawDates[0] || null;
+          const end   = rawDates[1] || rawDates[0] || null;
+
+          // Only count as "upcoming" if any part of the range is today or later
+          if (end && new Date(end.date + 'T00:00:00').getTime() >= todayMs) {
+            upcoming = {
+              earningsDate: start.date,
+              earningsDateEnd: end.date !== start.date ? end.date : null,
+              earningsDateTimeUTC:    start.full,
+              earningsDateTimeEndUTC: end.full !== start.full ? end.full : null,
+              isEstimate: !!ev.isEarningsDateEstimate,
+              epsAvg:  ev.earningsAverage ?? null,
+              epsLow:  ev.earningsLow     ?? null,
+              epsHigh: ev.earningsHigh    ?? null,
+              revenueAvg: ev.revenueAverage ?? null,
+            };
+          }
+        }
+
+        // ── Past entry — most recent earningsHistory row with a reported actual ──
+        const histRaw = summary?.earningsHistory?.history || [];
+        const reported = histRaw
+          .map(h => ({
+            quarter: h.quarter ? toIso(h.quarter) : null,
+            period: h.period || null,
+            epsActual:       h.epsActual       ?? null,
+            epsEstimate:     h.epsEstimate     ?? null,
+            epsDifference:   h.epsDifference   ?? null,
+            surprisePercent: h.surprisePercent ?? null,
+          }))
+          .filter(h => h.quarter && h.epsActual != null)
+          .sort((a, b) => (b.quarter || '').localeCompare(a.quarter || ''));
+
+        const past = reported[0] || null;
+
+        const entry = {
+          symbol: sym,
+          name: price?.shortName || price?.longName || sym,
+          currency: price?.currency || null,
+          upcoming,
+          past,
+        };
+
+        result[sym] = entry;
+        earningsCache.set(sym, { data: entry, ts: Date.now() });
+      } catch (err) {
+        // Cache the miss briefly so we don't hammer on persistent failures
+        earningsCache.set(sym, { data: null, ts: Date.now() });
+      }
+    }));
+    if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 250));
+  }
+
+  return result;
+}
+
+/**
+ * Past earnings reports for a single symbol — quarterly EPS actual vs estimate.
+ * Uses Yahoo `earningsHistory` quoteSummary module.
+ */
+async function getEarningsHistory(symbol) {
+  const toDate = (val) => {
+    if (!val) return null;
+    const d = val instanceof Date ? val : new Date(typeof val === 'number' ? val * 1000 : val);
+    return isNaN(d) ? null : d;
+  };
+  const toIso     = (val) => { const d = toDate(val); return d ? d.toISOString().split('T')[0] : null; };
+  const toIsoFull = (val) => { const d = toDate(val); return d ? d.toISOString() : null; };
+
+  try {
+    const summary = await fetchWithRetry(yf.quoteSummary, [symbol, {
+      modules: ['earningsHistory', 'earningsTrend', 'price', 'calendarEvents'],
+    }]);
+
+    const price = summary?.price || {};
+    const history = (summary?.earningsHistory?.history || []).map(h => ({
+      quarter: h.quarter ? toIso(h.quarter) : null,
+      period:  h.period  || null,
+      epsActual:        h.epsActual        ?? null,
+      epsEstimate:      h.epsEstimate      ?? null,
+      epsDifference:    h.epsDifference    ?? null,
+      surprisePercent:  h.surprisePercent  ?? null,
+    })).filter(h => h.quarter); // drop empty rows
+
+    // Sort newest first
+    history.sort((a, b) => (b.quarter || '').localeCompare(a.quarter || ''));
+
+    const ev = summary?.calendarEvents?.earnings;
+    const rawDates = (ev?.earningsDate || [])
+      .map(v => ({ date: toIso(v), full: toIsoFull(v) }))
+      .filter(d => d.date)
+      .sort((a, b) => a.full.localeCompare(b.full));
+
+    return {
+      symbol,
+      name: price.shortName || price.longName || symbol,
+      currency: price.currency || null,
+      history,
+      upcoming: {
+        earningsDate:           rawDates[0]?.date || null,
+        earningsDateEnd:        rawDates[1]?.date || null,
+        earningsDateTimeUTC:    rawDates[0]?.full || null,
+        earningsDateTimeEndUTC: rawDates[1]?.full || null,
+        isEstimate:             !!ev?.isEarningsDateEstimate,
+        epsAvg:                 ev?.earningsAverage ?? null,
+        epsLow:                 ev?.earningsLow     ?? null,
+        epsHigh:                ev?.earningsHigh    ?? null,
+        revenueAvg:             ev?.revenueAverage  ?? null,
+      },
+    };
+  } catch (err) {
+    console.warn(`[YahooApi] earnings history fail for ${symbol}: ${err.message}`);
+    return { symbol, name: symbol, currency: null, history: [], upcoming: null };
+  }
+}
+
+/**
  * Historical chart data for a symbol and period
  */
 async function getStockChart(symbol, period) {
@@ -687,5 +863,5 @@ async function getStockDetailsFMP(symbol) {
 module.exports = {
   searchStocks, getQuote, getPriceChange, getBulkPriceData, getDashboardQuotes,
   getMarketMovers, getHistoricalMovers, getDividendData, getStockChart,
-  getStockFundamentals, getSectorStocks, getStockDetailsFMP
+  getStockFundamentals, getSectorStocks, getStockDetailsFMP, getUpcomingEarnings, getEarningsHistory
 };
