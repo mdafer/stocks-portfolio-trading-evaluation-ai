@@ -213,6 +213,31 @@ async function getIncomeStatement(symbol) {
 }
 
 /**
+ * Bulk earnings calendar — single FMP call covers all companies in a date range.
+ * Each entry: { symbol, date, epsActual, epsEstimated, revenueActual, revenueEstimated, ... }
+ */
+const earningsCalendarCache = new Map();
+const EARNINGS_CALENDAR_TTL = 60 * 60 * 1000; // 1 hour
+
+async function getEarningsCalendarBulk(from, to) {
+  if (!FMP_API_KEY) return null;
+  const cacheKey = `${from}|${to}`;
+  const cached = earningsCalendarCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < EARNINGS_CALENDAR_TTL) return cached.data;
+
+  try {
+    const url = `${FMP_BASE_URL}/earnings-calendar?from=${from}&to=${to}&apikey=${FMP_API_KEY}`;
+    const data = await fetchWithRetry(url);
+    const result = Array.isArray(data) ? data : [];
+    earningsCalendarCache.set(cacheKey, { data: result, ts: Date.now() });
+    return result;
+  } catch (err) {
+    console.error(`[FMP] earnings calendar failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * Get top market gainers and losers from FMP
  * @param {number} count - Number of results per side
  * @returns {Promise<Object>} { topPerformers, bottomPerformers }
@@ -250,5 +275,6 @@ module.exports = {
   getCompanyProfile,
   getHistoricalPrices,
   getIncomeStatement,
-  getMarketGainersLosers
+  getMarketGainersLosers,
+  getEarningsCalendarBulk,
 };

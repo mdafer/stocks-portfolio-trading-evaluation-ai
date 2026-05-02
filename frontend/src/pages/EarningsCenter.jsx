@@ -301,6 +301,9 @@ export default function EarningsCenter() {
 
   const portfolio = data?.portfolio ?? { upcoming: [], past: [] };
   const top       = data?.top       ?? { upcoming: [], past: [] };
+  const scanned   = data?.userSymbolsScanned ?? 0;
+  const totalSyms = data?.userSymbolsTotal   ?? 0;
+  const truncated = totalSyms > scanned && scanned > 0;
 
   const portfolioUpcomingSoon = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -338,6 +341,11 @@ export default function EarningsCenter() {
             {portfolioUpcomingSoon.length > 0 && (
               <span style={{ marginLeft: 10, color: 'var(--primary)', fontWeight: 600 }}>
                 · {portfolioUpcomingSoon.length} of yours in next 30 days
+              </span>
+            )}
+            {truncated && (
+              <span style={{ marginLeft: 10, color: 'var(--text-3, #888)', fontStyle: 'italic' }}>
+                · scanning top {scanned} of {totalSyms} holdings
               </span>
             )}
           </p>

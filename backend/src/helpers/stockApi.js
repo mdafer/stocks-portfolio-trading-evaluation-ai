@@ -300,7 +300,7 @@ async function getDividendData(symbols) {
  * Uses Yahoo Finance `calendarEvents` (per symbol). Returns map symbol → entry.
  */
 const earningsCache = new Map();
-const EARNINGS_TTL = 6 * 60 * 60 * 1000; // 6 hours
+const EARNINGS_TTL = 24 * 60 * 60 * 1000; // 24 hours — earnings data changes slowly
 
 async function getUpcomingEarnings(symbols) {
   if (!symbols.length) return {};
@@ -334,8 +334,9 @@ async function getUpcomingEarnings(symbols) {
     }
   }
 
-  // Batch — Yahoo quoteSummary is per-symbol; cap concurrency to avoid 429s.
-  const BATCH = 6;
+  // Batch — Yahoo quoteSummary is per-symbol. Higher concurrency drastically
+  // cuts wall-clock time at the cost of a few extra 429s (handled by retry).
+  const BATCH = 14;
   for (let i = 0; i < toFetch.length; i += BATCH) {
     const batch = toFetch.slice(i, i + BATCH);
     await Promise.all(batch.map(async (sym) => {
@@ -405,7 +406,7 @@ async function getUpcomingEarnings(symbols) {
         earningsCache.set(sym, { data: null, ts: Date.now() });
       }
     }));
-    if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 250));
+    if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 80));
   }
 
   return result;
